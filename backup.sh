@@ -1,5 +1,4 @@
 #!/bin/bash
-
 SCREEN_NAME="minecraft"
 SERVER_WORLDS=()
 SERVER_WORLDS[0]="/home/minecraft/server/world"
@@ -20,12 +19,12 @@ PREFIX="Backup" # Shows in the chat message
 DEBUG=false # Enable debug messages
 SUPPRESS_WARNINGS=false # Suppress warnings
 SPECIAL_BACKUP="_EXTRA"
-
+IS_EXTRA_BACKUP=false
 # Other Variables (do not modify)
 DATE_FORMAT="%F_%H-%M-%S"
 TIMESTAMP=$(date +$DATE_FORMAT)
 
-while getopts 'a:cd:e:f:hi:jl:m:o:p:qs:v' FLAG; do
+while getopts 'a:cd:e:f:hi:jl:m:o:p:qs:vx' FLAG; do
   case $FLAG in
     a) COMPRESSION_ALGORITHM=$OPTARG ;;
     c) ENABLE_CHAT_MESSAGES=true ;;
@@ -48,6 +47,7 @@ while getopts 'a:cd:e:f:hi:jl:m:o:p:qs:v' FLAG; do
        echo "-q    Suppress warnings"
        echo "-s    Minecraft server screen name"
        echo "-v    Verbose mode"
+       echo "-x    Extra BAckup. Ignored by thin delete mode"
        exit 0
        ;;
     i) SERVER_WORLDS+=("$OPTARG") ;;
@@ -59,6 +59,7 @@ while getopts 'a:cd:e:f:hi:jl:m:o:p:qs:v' FLAG; do
     q) SUPPRESS_WARNINGS=true ;;
     s) SCREEN_NAME=$OPTARG ;;
     v) DEBUG=true ;;
+	x) IS_EXTRA_BACKUP=true
   esac
 done
 
@@ -280,6 +281,7 @@ do
   BACKUP_DIRECTORY=""
   ARCHIVE_FILE_NAME=""
   NOTIFY_ADDITION=""
+  EXTRA_BACKUP_ADDITION=""
 
   if [[ ${#BACKUP_DIRECTORYS[@]} -eq 1 ]]; then
     BACKUP_DIRECTORY=${BACKUP_DIRECTORYS[0]}
@@ -287,15 +289,19 @@ do
     BACKUP_DIRECTORY=${BACKUP_DIRECTORYS[${CURRENT_INDEX}]}
   fi
 
+  if $IS_EXTRA_BACKUP; then
+  	$EXTRA_BACKUP_ADDITION="_${SPECIAL_BACKUP}"
+  fi
+
   
   if [[ ${#SERVER_WORLDS[@]} -gt 1 ]]; then
-    ARCHIVE_FILE_NAME=$TIMESTAMP"_"$WORLD_NAME.tar$COMPRESSION_FILE_EXTENSION
+    ARCHIVE_FILE_NAME=$TIMESTAMP"_"$WORLD_NAME$EXTRA_BACKUP_ADDITION.tar$COMPRESSION_FILE_EXTENSION
     NOTIFY_ADDITION=" of ${WORLD_NAME}"
   else
-    ARCHIVE_FILE_NAME=$TIMESTAMP.tar$COMPRESSION_FILE_EXTENSION
+    ARCHIVE_FILE_NAME=$TIMESTAMP$EXTRA_BACKUP_ADDITION.tar$COMPRESSION_FILE_EXTENSION
   fi
   # Notify players of start
-  message-players-color-single "${WORLD_NAME} -> ${ARCHIVE_FILE_NAME}" "dark_gray"
+  message-players-color-single "${ARCHIVE_FILE_NAME}" "grey"
 
   ARCHIVE_PATH=$BACKUP_DIRECTORY/$ARCHIVE_FILE_NAME
 
@@ -327,7 +333,8 @@ do
   
   # Check that archive size is not null and at least 1024 KB
   if [[ "$ARCHIVE_SIZE" != "" && "$ARCHIVE_SIZE_BYTES" -gt 8 ]]; then
-    message-players-success-single "${WORLD_NAME} complete: $TIME_DELTA s | compression: $COMPRESSION_PERCENT % | $ARCHIVE_SIZE/$BACKUP_DIRECTORY_SIZE Size"
+    message-players-success-single "${WORLD_NAME} complete!"
+    message-players-color-single "$TIME_DELTA s | compression: $COMPRESSION_PERCENT % | $ARCHIVE_SIZE/$BACKUP_DIRECTORY_SIZE Size" "white"
     delete-old-backups $BACKUP_DIRECTORY $WORLD_NAME
   else
     message-players-error-single "${WORLD_NAME} failed: ${ARCHIVE_FILE_NAME} was not saved!"
@@ -344,7 +351,7 @@ JOINED_BACKUP_DIRECTORY_SIZE=$((JOINED_BACKUP_DIRECTORY_SIZE / 1024 / 1024))
 
 if $ENABLE_JOINED_BACKUP_MESSAGE; then
   message-players-color-single "-- All Backups complete --" "dark_green"
-  message-players-color-single "$JOINED_TIME_DELTA s | compression: $JOINED_COMPRESSION_PERCENT % | $JOINED_ARCHIVE_SIZE M/$JOINED_BACKUP_DIRECTORY_SIZE M Size"
+  message-players-color-single "$JOINED_TIME_DELTA s | compression: $JOINED_COMPRESSION_PERCENT % | $JOINED_ARCHIVE_SIZE M/$JOINED_BACKUP_DIRECTORY_SIZE M Size" "white"
 fi
 
 # Enable world autosaving
