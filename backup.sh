@@ -1,26 +1,25 @@
 #!/bin/bash
 
-# Minecraft server automatic backup management script
-# by Nicolas Chan
-# MIT License
-#
-# For Minecraft servers running in a GNU screen.
-# For most convenience, run automatically with cron.
-
-# Default Configuration 
-SCREEN_NAME="" # Name of the GNU Screen your Minecraft server is running in
-SERVER_WORLDS=() # Array for input paths (paths of the worlds to back up)
-BACKUP_DIRECTORYS=() # Array for directory to save backups in (invoke in same order as input directorys with -i)
-MAX_BACKUPS=128 # Max. backups per world. -1 indicates unlimited
-DELETE_METHOD="thin" # Choices: thin, sequential, none; sequential: delete oldest; thin: keep last 24 hourly, last 30 daily, and monthly (use with 1 hr cron interval)
-COMPRESSION_ALGORITHM="gzip" # Leave empty for no compression
-COMPRESSION_FILE_EXTENSION=".gz" # Leave empty for no compression; Precede with a . (for example: ".gz")
-COMPRESSION_LEVEL=3 # Passed to the compression algorithm
-ENABLE_CHAT_MESSAGES=false # Tell players in Minecraft chat about backup status
-ENABLE_JOINED_BACKUP_MESSAGE=false # Print a combined Backup info messsage after all Backups are finished - if multiple Backups were performed
+SCREEN_NAME="minecraft"
+SERVER_WORLDS=()
+SERVER_WORLDS[0]="/home/minecraft/server/world"
+SERVER_WORLDS[1]="/home/minecraft/server/world_nether"
+SERVER_WORLDS[2]="/home/minecraft/server/world_the_end"
+BACKUP_DIRECTORYS=()
+BACKUP_DIRECTORYS[0]="/home/minecraft/backup/world"
+BACKUP_DIRECTORYS[1]="/home/minecraft/backup/world_nether"
+BACKUP_DIRECTORYS[2]="/home/minecraft/backup/world_the_end"
+MAX_BACKUPS=128
+DELETE_METHOD="thin"
+COMPRESSION_ALGORITHM="gzip"
+COMPRESSION_FILE_EXTENSION=".gz"
+COMPRESSION_LEVEL=3
+ENABLE_CHAT_MESSAGES=true
+ENABLE_JOINED_BACKUP_MESSAGE=true
 PREFIX="Backup" # Shows in the chat message
 DEBUG=false # Enable debug messages
 SUPPRESS_WARNINGS=false # Suppress warnings
+SPECIAL_BACKUP="_EXTRA"
 
 # Other Variables (do not modify)
 DATE_FORMAT="%F_%H-%M-%S"
@@ -100,6 +99,10 @@ message-players () {
   local HOVER_MESSAGE=$2
   message-players-color "$MESSAGE" "$HOVER_MESSAGE" "gray"
 }
+message-players-single () {
+  local MESSAGE=$1
+  message-players-color-single "$MESSAGE$" "gray"
+}
 execute-command () {
   local COMMAND=$1
   if [[ $SCREEN_NAME != "" ]]; then
@@ -111,10 +114,18 @@ message-players-error () {
   local HOVER_MESSAGE=$2
   message-players-color "$MESSAGE" "$HOVER_MESSAGE" "red"
 }
+message-players-error-single () {
+  local MESSAGE=$1
+  message-players-color-single "$MESSAGE" "red"
+}
 message-players-success () {
   local MESSAGE=$1
   local HOVER_MESSAGE=$2
   message-players-color "$MESSAGE" "$HOVER_MESSAGE" "green"
+}
+message-players-success-single () {
+  local MESSAGE=$1
+  message-players-color-single "$MESSAGE" "green"
 }
 message-players-color () {
   local MESSAGE=$1
@@ -127,7 +138,16 @@ message-players-color () {
     execute-command "tellraw @a [\"\",{\"text\":\"[$PREFIX] \",\"color\":\"gray\",\"italic\":true},{\"text\":\"$MESSAGE\",\"color\":\"$COLOR\",\"italic\":true,\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"text\":\"\",\"extra\":[{\"text\":\"$HOVER_MESSAGE\"}]}}}]"
   fi
 }
-
+message-players-color-single () {
+	local MESSAGE=$1
+	local COLOR=$2
+	if $DEBUG; then
+    	echo "$MESSAGE"
+  	fi
+  	if $ENABLE_CHAT_MESSAGES; then
+    	execute-command "tellraw @a [\"\",{\"text\":\"[$PREFIX] \",\"color\":\"gray\",\"italic\":true},{\"text\":\"$MESSAGE\",\"color\":\"$COLOR\",\"italic\":true}]"
+  	fi
+}
 # Parse file timestamp to one readable by "date" 
 parse-file-timestamp () {
   local DATE_STRING=$(echo $1 | awk -F_ '{gsub(/-/,":",$2); print $1" "$2}')
@@ -136,20 +156,21 @@ parse-file-timestamp () {
 
 # Delete a backup
 delete-backup () {
-  local BACKUP=$2
   local BACKUP_DIRECTORY=$1
+  local BACKUP=$2
   rm $BACKUP_DIRECTORY/$BACKUP
-  message-players "Deleted old backup" "$BACKUP"
+  #message-players "Deleted old backup" "$BACKUP"
+  message-players-color-single "Deleted backup $BACKUP form $BACKUP_DIRECTORY" "red"
 }
 
 # Sequential delete method
 delete-sequentially () {
   local BACKUP_DIRECTORY=$1
   local WORLD_NAME=$2
-  local BACKUPS=($(ls $BACKUP_DIRECTORY | grep $WORLD_NAME))
+  local BACKUPS=($(ls $BACKUP_DIRECTORY | grep $WORLD_NAME | grep -ve $SPECIAL_BACKUP))
   while [[ $MAX_BACKUPS -ge 0 && ${#BACKUPS[@]} -gt $MAX_BACKUPS ]]; do
     delete-backup BACKUP_DIRECTORY ${BACKUPS[0]}
-    BACKUPS=($(ls $BACKUP_DIRECTORY | grep $WORLD_NAME))
+    BACKUPS=($(ls $BACKUP_DIRECTORY | grep $WORLD_NAME | grep -ve $SPECIAL_BACKUP))
   done
 }
 
@@ -198,7 +219,7 @@ delete-thinning () {
   fi
 
   local CURRENT_INDEX=0
-  local BACKUPS=($(ls -r $BACKUP_DIRECTORY | grep $WORLD_NAME)) # List newest first
+  local BACKUPS=($(ls -r $BACKUP_DIRECTORY | grep $WORLD_NAME | grep -ve $SPECIAL_BACKUP)) # List newest first
 
   for BLOCK_INDEX in ${!BLOCK_SIZES[@]}; do
     local BLOCK_SIZE=${BLOCK_SIZES[BLOCK_INDEX]}
@@ -233,10 +254,11 @@ delete-thinning () {
 # Delete old backups
 delete-old-backups () {
   local BACKUP_DIRECTORY=$1
+  local BACKUP=$2
   case $DELETE_METHOD in
-    "sequential") delete-sequentially $BACKUP_DIRECTORY $2
+    "sequential") delete-sequentially $BACKUP_DIRECTORY $BACKUP
       ;;
-    "thin") delete-thinning $BACKUP_DIRECTORY $2
+    "thin") delete-thinning $BACKUP_DIRECTORY $BACKUP
       ;;
   esac
 }
@@ -273,7 +295,7 @@ do
     ARCHIVE_FILE_NAME=$TIMESTAMP.tar$COMPRESSION_FILE_EXTENSION
   fi
   # Notify players of start
-  message-players "Starting backup${NOTIFY_ADDITION}..." "$ARCHIVE_FILE_NAME"
+  message-players-color-single "${WORLD_NAME} -> ${ARCHIVE_FILE_NAME}" "dark_gray"
 
   ARCHIVE_PATH=$BACKUP_DIRECTORY/$ARCHIVE_FILE_NAME
 
@@ -305,10 +327,10 @@ do
   
   # Check that archive size is not null and at least 1024 KB
   if [[ "$ARCHIVE_SIZE" != "" && "$ARCHIVE_SIZE_BYTES" -gt 8 ]]; then
-    message-players-success "Backup${NOTIFY_ADDITION} complete!" "$TIME_DELTA s, $ARCHIVE_SIZE/$BACKUP_DIRECTORY_SIZE, $COMPRESSION_PERCENT%"
+    message-players-success-single "${WORLD_NAME} complete: $TIME_DELTA s | compression: $COMPRESSION_PERCENT % | $ARCHIVE_SIZE/$BACKUP_DIRECTORY_SIZE Size"
     delete-old-backups $BACKUP_DIRECTORY $WORLD_NAME
   else
-    message-players-error "Backup${NOTIFY_ADDITION} was not saved!" "Please notify an administrator"
+    message-players-error-single "${WORLD_NAME} failed: ${ARCHIVE_FILE_NAME} was not saved!"
   fi
 
   CURRENT_INDEX=$((INDEX_COUTER+1))
@@ -321,7 +343,8 @@ JOINED_ARCHIVE_SIZE=$((JOINED_ARCHIVE_SIZE_BYTES / 1024 / 1024))
 JOINED_BACKUP_DIRECTORY_SIZE=$((JOINED_BACKUP_DIRECTORY_SIZE / 1024 / 1024))
 
 if $ENABLE_JOINED_BACKUP_MESSAGE; then
-  message-players-color "All Backups completed!" "$JOINED_TIME_DELTA s, $JOINED_ARCHIVE_SIZE M/$JOINED_BACKUP_DIRECTORY_SIZE M, $JOINED_COMPRESSION_PERCENT%" "dark_green"
+  message-players-color-single "-- All Backups complete --" "dark_green"
+  message-players-color-single "$JOINED_TIME_DELTA s | compression: $JOINED_COMPRESSION_PERCENT % | $JOINED_ARCHIVE_SIZE M/$JOINED_BACKUP_DIRECTORY_SIZE M Size"
 fi
 
 # Enable world autosaving
