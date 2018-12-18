@@ -59,7 +59,7 @@ while getopts 'a:cd:e:f:hi:jl:m:o:p:qs:vx' FLAG; do
     q) SUPPRESS_WARNINGS=true ;;
     s) SCREEN_NAME=$OPTARG ;;
     v) DEBUG=true ;;
-	x) IS_EXTRA_BACKUP=true
+  x) IS_EXTRA_BACKUP=true
   esac
 done
 
@@ -140,14 +140,14 @@ message-players-color () {
   fi
 }
 message-players-color-single () {
-	local MESSAGE=$1
-	local COLOR=$2
-	if $DEBUG; then
-    	echo "$MESSAGE"
-  	fi
-  	if $ENABLE_CHAT_MESSAGES; then
-    	execute-command "tellraw @a [\"\",{\"text\":\"[$PREFIX] \",\"color\":\"gray\",\"italic\":true},{\"text\":\"$MESSAGE\",\"color\":\"$COLOR\",\"italic\":true}]"
-  	fi
+  local MESSAGE=$1
+  local COLOR=$2
+  if $DEBUG; then
+      echo "$MESSAGE"
+    fi
+    if $ENABLE_CHAT_MESSAGES; then
+      execute-command "tellraw @a [\"\",{\"text\":\"[$PREFIX] \",\"color\":\"gray\",\"italic\":true},{\"text\":\"$MESSAGE\",\"color\":\"$COLOR\",\"italic\":true}]"
+    fi
 }
 # Parse file timestamp to one readable by "date" 
 parse-file-timestamp () {
@@ -161,7 +161,7 @@ delete-backup () {
   local BACKUP=$2
   rm $BACKUP_DIRECTORY/$BACKUP
   #message-players "Deleted old backup" "$BACKUP"
-  message-players-color-single "Deleted backup $BACKUP form $BACKUP_DIRECTORY" "red"
+  message-players-color-single "Deleted $BACKUP" "grey"
 }
 
 # Sequential delete method
@@ -290,7 +290,7 @@ do
   fi
 
   if $IS_EXTRA_BACKUP; then
-  	$EXTRA_BACKUP_ADDITION="_${SPECIAL_BACKUP}"
+    $EXTRA_BACKUP_ADDITION="_${SPECIAL_BACKUP}"
   fi
 
   
@@ -340,7 +340,7 @@ do
     message-players-error-single "${WORLD_NAME} failed: ${ARCHIVE_FILE_NAME} was not saved!"
   fi
 
-  CURRENT_INDEX=$((INDEX_COUTER+1))
+  CURRENT_INDEX=$((CURRENT_INDEX+1))
 done
 
 JOINED_END_TIME=$(date +"%s")
