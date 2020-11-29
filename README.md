@@ -25,6 +25,7 @@ Backup script for Linux servers running a Minecraft server in a GNU Screen
 
   ```bash
 SCREEN_NAME="PrivateSurvival" # Name of the GNU Screen your Minecraft server is running in
+RCON_PASSWORD="Good_Passw0rd" # rcon password set in server.properties. Requires mcrcon - https://github.com/Tiiffi/mcrcon
 SERVER_WORLDS=() # Array for input paths (paths of the worlds to back up)
 SERVER_WORLDS[0]="/home/server/MinecraftServers/PrivateSurvival/world" # World you want to back up
 BACKUP_DIRECTORYS=() # Array for directory to save backups in (invoke in same order as input directorys with -i)
@@ -48,6 +49,7 @@ DEBUG=true # Enable debug messages
 ## Help
 - Make sure the compression algorithm you specify is installed on your system. (zstd is not installed by default)
 - Make sure your compression algorithm is in the crontab's PATH
+- Make sure mcrcon is in the crontab's PATH
 - Make sure cron has permissions for all the files involved and access to the Minecraft server's GNU Screen
 - It's surprising how much space backups can take--make sure you have enough empty space
 - Do not put trailing `/` in the `SERVER_WORLDS` or `BACKUP_DIRECTORYs`
